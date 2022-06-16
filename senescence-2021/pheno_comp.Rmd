@@ -1,0 +1,160 @@
+---
+title: "Toolik Phenology Comparison"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(googlesheets4)
+library(tidyverse)
+
+read_pheno_sheet <- function(file) {
+  site_plot <- read_sheet(file, range = "1-1!B1:B2", col_names = F)
+  site <- site_plot[[1,1]]
+  plot <- site_plot[[2,1]]
+  
+  data_1_2 <- read_sheet(file, skip = 2, range = "1-1!A3:N39", na = c("NA", "")) %>% 
+    fill(SPP.) 
+  
+  data_3_4 <- read_sheet(file, skip = 2, range = "1-1!O3:AB39", na = c("NA", "")) %>% 
+    fill(SPP.) 
+  
+  data_raw <- bind_rows(data_1_2, data_3_4)
+  data_new <- data_raw[ , colSums(is.na(data_raw)) < nrow(data_raw)] %>% 
+    pivot_longer(starts_with("2021"), names_to = "DATE", values_to = "COUNT") %>% 
+    arrange(SPP., ID, PHENO., DATE) %>% 
+    fill(COUNT) %>%  #fill in GREEN NA's 
+    
+    # formatting 
+    pivot_wider(names_from = PHENO., values_from = COUNT, values_fill = NA) %>% 
+    mutate(DATE = as_date(DATE))
+  
+  pheno_data <- data_new %>% 
+    mutate(SITE = site, PLOT = plot) %>% 
+    
+    # calculate percentages 
+    mutate(GREEN_percent = GREEN_count / (GREEN_count + SENES_count),
+           GREEN_percent1 = GREEN_length1 /TOTAL_length1,
+           GREEN_percent2 = GREEN_length2 /TOTAL_length2,
+           GREEN_percent3 = GREEN_length3 /TOTAL_length3) %>% 
+   
+   mutate(GREEN_percentMean = rowMeans(select(., GREEN_percent1:GREEN_percent3), na.rm = T))
+  
+  print(file)
+  
+  return(pheno_data)
+}
+```
+
+## Plotting Senescence Data
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+sheets <- c(## 1 
+            "https://docs.google.com/spreadsheets/d/1bgVcIu5Ea4l2EGCnbHou2tUDzaQZU67EWu2ToafZ1Oc/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/11UcltE3xMfnSgFEKqrlAY-mUrkuReBgPzLhlKDtlJA4/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/1q0y3WKj7jrW30V2akaQBkSSrDKsaxXRgL1FfDrkv0F8/edit?usp=sharing",
+            
+            ## 2 
+            "https://docs.google.com/spreadsheets/d/1DwmkejxHu84_eRH8KIG27pZF4POtLZ1ji2CcPZrpl1c/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/1OP_k_boLjHtJWinEDZSrk-_7qAzmkc6qacVByQ6vTBk/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/117nDVzMgqKZr2xGMb2RjLzXT2q4AsF7Jn2-bz6ltrnk/edit?usp=sharing",
+            
+            ## 3
+            "https://docs.google.com/spreadsheets/d/1HDXq5pGCzRm2SB4yoKrymkWh6ic-2kxbJhb7IjPzYP8/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/1lrAMEu17hZgmd7utV3AZIEvlSje--kYcItSRWO63CzI/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/1YmHECEK5LxRXWIqfhHtyb6GOScjR5xC5voYvgokjZ6g/edit?usp=sharing",
+            
+            ## 4
+            "https://docs.google.com/spreadsheets/d/1lPwt5xzgHkoCAixOOz67eIyElokihsX-EJK8aegcZFk/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/1dqFLIMWPViVRVYjvuwXX82ojdtPADqoGDkJuZkUirkQ/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/1xQ53U8ERbjRovDpeG2rzJJTq5jZ1HloX8OIda88uEXs/edit?usp=sharing",
+            
+            ## 5
+            "https://docs.google.com/spreadsheets/d/1zDlgEkx8QEW4CkF8Q__inNLWLy1FTIS-2fPwTuimzFo/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/1uoowHjtJ7wNSPVOqsU1lQVZCpPAjkaUndC9NQtLltKc/edit?usp=sharing",
+            "https://docs.google.com/spreadsheets/d/1rFjxId_62OAgh7BhMrHJNUJTpXqhdRWPu2A5l_dlzYE/edit?usp=sharing"
+            
+            )
+
+
+data <- map_dfr(sheets, read_pheno_sheet)
+write_rds(data, "pheno_comp_data.rds")
+```
+
+## Load Data 
+```{r}
+data_directory <- "/home/ruby/Projects/toolik"
+setwd(data_directory)
+data <- read_rds("pheno_comp_data.rds")
+
+pheno_data <- data %>% 
+  mutate(GREEN_percent = if_else(is.na(GREEN_percent), GREEN_percentMean, GREEN_percent)) %>% 
+  mutate(ID = str_c(SITE, "-", PLOT, "-", ID)) 
+
+pheno_data[c('Set', 'Plot', "Corner")] <- str_split_fixed(pheno_data$ID, '-', 3)
+
+
+pheno_mean <- pheno_data %>% 
+  group_by(SPP.,DATE) %>% 
+  summarize(GREEN_percent = mean(GREEN_percent, na.rm=T),
+            GREEN_sd = sd(GREEN_percent, na.rm=T))
+
+
+ggplot(pheno_mean, aes(x = DATE, y = GREEN_percent, color = SPP.)) + 
+  geom_line() + 
+    geom_point()  +
+  ylim(c(0,1))
+
+ggplot(pheno_data, aes(x = DATE, y = GREEN_percent, color = Set, group = ID)) + 
+  geom_point() + 
+  geom_line() + 
+  ylim(c(0,1)) + facet_grid(Plot ~ SPP.)
+
+
+
+
+## TEST
+
+myTable <- "
+        1     -50     -52
+        2     -44     -51
+        3     -48     -50
+        4     -50     -49
+        5     -44     -49
+        6     -48     -49
+        7     -48     -49
+        8     -44     -48
+        9     -49     -48
+       10     -48     -45
+       11     -60     -48
+       10     -50     -48
+       11     -80     -47"
+
+df <- read.table(text=myTable, header = TRUE)
+names(df) <- c("ID","Value1","Value2")
+
+median_sd = function(x, n=1) {
+  data_frame(y = median(x),
+             sd = sd(x),
+             ymin = y - n*sd,
+             ymax = y + n*sd)
+}
+
+pheno_to_plot <- pheno_data %>% select(DATE, SPP., ID, Set, Plot, Corner, GREEN_percent)
+
+ggplot(pheno_to_plot, aes(DATE, GREEN_percent, color = SPP.)) +
+  stat_summary(fun.data=median_sd, geom="errorbar", width=0.1, position=position_dodge(width=0.5)) +
+  stat_summary(fun=median, geom="line", position=position_dodge(width=0.5)) +
+  stat_summary(fun=median, geom="point", position=position_dodge(width=0.5)) +
+  theme_bw() + 
+  scale_color_manual(values = c("firebrick3", "dodgerblue3", "blue3", "green4", "limegreen")) 
+
+
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
