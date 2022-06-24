@@ -11,6 +11,7 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 require(tidyverse)
+require(googlesheets4)
 ```
 
 ## Unispec-SC Functions
@@ -130,16 +131,30 @@ calculate_spectral_bands <- function(spectra, band_defns, instruments) {
 
 ## Read-in SPU Files 
 ```{r}
+
+
+
 # Set working directory
-wdir <- "/home/ruby/unispec-sc/20220610/" #this is the path to the folder containing your (1) files and (2) field key
+wdir <- "/home/ruby/Projects/toolik_phenology/unispec-sc/20220613/" #this is the path to the folder containing your (1) files and (2) field key
 setwd(wdir)
 # Create vector of ".spu" files 
-spu_files <- list.files(path = getwd(), pattern = ".spu$", full.names = T, recursive=T)
+spu_files <- list.files(path = wdir, pattern = ".spu$", full.names = T, recursive=T)
 # Read-in files to a dataframe using "read_sc_spu_file" function from above 
 spu_data <- map_dfr(spu_files, read_sc_spu_file) 
 # Save spu data
 # write_rds(spu_data, "spu_data.rds")
 # spu_data <- read_rds("spu_data.rds")
+
+
+## Read field key  LOCALLY
+# field_key <- read_csv("unispec-sc_test_labels_2022-06-10.csv", skip_empty_rows = T) %>% 
+#   filter(!is.na(spu_filename)) 
+
+## Read field key from gsheets
+file_link <- "https://docs.google.com/spreadsheets/d/13Y10L559_jJoyoxwkT_MjvfjYEPkFHwX0IUAH3Wsd9Y/edit#gid=0"
+
+field_key <- read_sheet(file_link)
+
 ```
 
 ## Calculate NDVI
@@ -152,9 +167,6 @@ df_spectra <- spu_data %>% mutate(Spectral_Bands = map(Spectra, function(x) calc
 
 ## Read-in Field Key
 ```{r}
-## Read field key
-field_key <- read_csv("unispec-sc_test_labels_2022-06-10.csv", skip_empty_rows = T) %>% 
-  filter(!is.na(spu_filename)) 
 
 ## Unnest Spectra:
 df_spectra <- spu_data %>% unnest(Spectra)
@@ -180,8 +192,8 @@ df %>% group_by(Species) %>%
 # Expand Spectra information
 # Plot faceting by block, instrument 
 ggplot(df, aes(x=Wavelength, y = Ratio)) +
-  geom_line(aes(color = Species, group = FileNum)) + 
-  facet_wrap(vars(Plant_Num))
+  geom_line(aes(color = factor(Color_Key_Value), group = FileNum)) + 
+  facet_wrap(vars(Species))
 
 # Subset 
 df_subset <- spu_data %>% filter(!is.na(spu_filename))

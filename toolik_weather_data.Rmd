@@ -1,0 +1,19 @@
+---
+title: "Toolik Weather Records"
+author: "Ruby An"
+date: "6/21/2022"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Files 
+```{r}
+setwdir("/home/ruby/Projects/toolik_phenology/")
+one_hour <- read_csv("toolik_weather/1-hour_data.csv")
+```
+
