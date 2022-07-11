@@ -8,7 +8,7 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = F)
 require(tidyverse)
 require(googlesheets4) # read in google spreadsheets without having to download
 require(lubridate) # good package for working with dates 
@@ -19,11 +19,11 @@ require(lubridate) # good package for working with dates
 ```{r}
 
 ## Read data from local file 
-orig_data <- read.csv(file = "data_phenology.csv", na.strings = c(""))
+# orig_data <- read.csv(file = "data_phenology.csv", na.strings = c(""))
 
 ## Read from google sheet
 orig_data <- read_sheet("https://docs.google.com/spreadsheets/d/1ohX8eUkBqoMZfytQkxMzWWYJ8GymI-xjPWnkMPsvst4/edit#gid=1013468108",
-                        col_types = c("cccciiiiiii??c")) ## specify what type so that it doesn't read as lists (due to letters and numbers in column)
+                        col_types = c("cccciiiiiiiiiiiic")) ## specify what type so that it doesn't read as lists (due to letters and numbers in column)
 
 #filling down the species names so it's easier to work with
 data <- fill(orig_data, Species) %>% #   fill down the sp. names
@@ -61,7 +61,7 @@ tidy_data <- data %>%
 ```
 
 
-## Plot Phenophases Separately
+## Plot Phenophases
 
 ```{r pressure, echo=FALSE}
 
@@ -69,10 +69,11 @@ tidy_data <- data %>%
 plot_data <- tidy_data %>% 
   filter(Species %in% c("CARBIG", "ERIVAG")) %>% 
   filter(!is.na(count)) %>% 
-  group_by(ID, date, Species, Pheno) %>% 
-  summarize(total_length = sum(count))
+  group_by(ID, Transect, date, Species, Pheno) %>% 
+  summarize(total_length = sum(count),
+            avg_length = sum(count)/n())
 
-ggplot(plot_data, aes(x=date, y= total_length, color = ID)) +
+ggplot(plot_data, aes(x=date, y= total_length, color = Transect, group_by = ID)) +
   geom_point() + 
   geom_line (data=plot_data[!is.na(plot_data$total_length),]) + 
   facet_grid(Pheno ~ Species)
@@ -81,7 +82,7 @@ ggplot(plot_data, aes(x=date, y= total_length, color = ID)) +
 ## Deciduous Shrubs 
 plot_data <- tidy_data %>% 
     filter(Species %in% c("BETNAN", "SALPUL")) %>% 
-  filter(Transect == 4)
+  filter(Transect == 1)
 
 ggplot(plot_data, aes(x=date, y= count, fill = Pheno)) +
   geom_bar(stat = "identity") + 
@@ -91,199 +92,294 @@ ggplot(plot_data, aes(x=date, y= count, fill = Pheno)) +
 
 ## Evergreen Shrubs 
 
+plot_data <- 
 
 ```
 
 
-## Establish common currency
+## Plot Leaf Area Expansion data
 ```{r}
+leaf_data_1 <- read_sheet("https://docs.google.com/spreadsheets/d/1gmmjS6KQjvfT5zol5ZATiZOvcqnpT61T8aG5xzfpbS8/edit#gid=0",
+                      col_types = c("ccciiiiiiiiiiiiiiiic")) %>% 
+  mutate(Date = "2022-06-24")
 
-  #converts phenophases to numerical scale
-  data[data == "BB"] <- 1
-  data[data == "LE"] <- 2
-  data[data == "LO"] <- 3
-  data[data== "mm"] <- 1
-  data[data== "mm, T"] <- 1
-  data[data== "mm, O"] <- 1
-  data[data== "mm, O "] <- 1
-  data[data== "flowers"] <- 1
-  data[data== "yellow"] <- 1
+leaf_data_2 <- read_sheet("https://docs.google.com/spreadsheets/d/1SIS6g7bWJEU72pyEMWk-sTvrnRtEkkNGe1VIDbkX-Pc/edit#gid=1923665367",
+                      col_types = c("ccciiiiiiiiiiiiiiiic"),
+                      sheet = "2022-06-27") %>% 
+  mutate(Date = "2022-06-27")
+
+leaf_data <- bind_rows(leaf_data_1, leaf_data_2)
+
+
+tidy_leaves <- leaf_data %>% 
+  fill(Species) %>% 
+  pivot_longer(cols = contains("_"), 
+               names_to = "LeafNum", 
+               values_to = "length") %>% 
   
-  #make sure phenophase scale is also numeric
-  data$Pheno <- as.numeric(unlist(data$Pheno))
+  ## remove empty rows
+  filter(!is.na(length)) %>% 
   
-# col should be the column of entered data corresponding to a date
-weight <- function(function_data, col)
-{
-  function_data <- data
+  ## Separate lengths and width measurements 
+  separate(LeafNum, sep = "_", into = c("LeafNum", "Dimension")) %>% 
   
-  #makes sure that the data is a numeric
-  function_data$col <- as.numeric(unlist(function_data$col))
+  ## Rename "length" column to "measure"
+  rename(Measurement = "length") %>% 
   
-  #creating a weighted column
-  function_data[col] <- function_data$"Pheno" * function_data$col
+  ## CLEANING
   
-  column_obj <- function_data$col
+  # Remove data point with missing values 
+  filter(!(Date == "2022-06-27" & Species == "SALPUL" & ID == "1.1")) %>% 
+  filter(!(Date == "2022-06-27" & Species == "LEDPAL" & ID == "1.1")) %>% 
   
-  return(function_data %>% group_by(Species)  %>% summarise(date= mean(col, na.rm = TRUE)))
-}
+  # Remove measurement of new bud (but not open leaf) length
+  filter(!str_detect(GrowthPoint, "new"))
+  
+  
+
+## Total Leaf Length 
+
+leaf_length <- tidy_leaves %>% 
+  filter(Dimension == "length") %>% 
+  mutate(ID_Species = str_c(ID, "_", Species)) %>% 
+  group_by(ID, Species, ID_Species, Date) %>% 
+  summarize(total_length = sum(Measurement),avg_length = sum(Measurement) / n())
+
+ggplot(leaf_length, aes(x = Date, y = total_length, color = ID, group = ID_Species)) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(vars(Species), scales = "free") + 
+  scale_y_continuous(limits = c(0, NA))
+
+## % Increase
+
+percent_gain <- leaf_length %>% select(-avg_length) %>% pivot_wider(names_from = Date, values_from = total_length) %>% 
+  mutate(percent_gain = (`2022-06-27`/`2022-06-24` - 1)*100)
+
+ggplot(percent_gain, aes(x = Species, y = percent_gain)) + 
+  geom_point(aes(color = ID)) + 
+  labs(title = "% Gain in Total Leaf Length - 2022-06-24 to 2022-06-27")
+
+## Average Leaf Size 
+
+ggplot(leaf_length, aes(x = Date, y = avg_length, color = ID, group = ID_Species)) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(vars(Species), scales = "free") + 
+  scale_y_continuous(limits = c(0, NA)) + 
+  labs(title = "Average Leaf Size") 
 
 
-data$"X06.13"
+## of Leaves
 
-weight(data, "X06.13")
+num_leaves <- tidy_leaves %>% 
+  filter(Dimension == "length") %>% 
+  mutate(ID_Species = str_c(ID, "_", Species)) %>% 
+  group_by(ID, Species, ID_Species, Date) %>% 
+  summarize(measured_leaves = n())
 
+ggplot(num_leaves, aes(x = Date, y = measured_leaves, color = ID, group = ID_Species)) + 
+  geom_point() + 
+  geom_line() + 
+  facet_wrap(vars(Species), scales = "free") + 
+  scale_y_continuous(limits = c(0, NA)) + 
+  labs(title = "Number of Leaves Measured") 
 
-data["X06.09"] <- as.numeric(unlist(data["X06.09"]))
-data["X06.13"] <- as.numeric(unlist(data["X06.13"]))
-data["X06.15"] <- as.numeric(unlist(data["X06.15"]))
-
-#converting phenophases into numerics to create a weighted average. There's 
-#most certainly a better way to do this 
-data[data == "BB"] <- 1
-data[data == "LE"] <- 2
-data[data == "LO"] <- 3
-data[data== "mm"] <- 1
-data[data== "mm, T"] <- 1
-data[data== "mm, O"] <- 1
-data[data== "mm, O "] <- 1
-data[data== "flowers"] <- 1
-data[data== "yellow"] <- 1
-
-data["Pheno"] <- as.numeric(unlist(data["Pheno"]))
-
-#creating a weighted column
-data["weighted1"] <- data["Pheno"] * data["X06.09"]
-data["weighted2"] <- data["Pheno"] * data["X06.13"]
-data["weighted3"] <- data["Pheno"] * data["X06.15"]
-
-#taking the average of the weighted phenophase data for each species
-data1 <- data %>% group_by(Species)  %>% summarise("609" = mean(weighted1, na.rm = TRUE))
-data2 <- data %>% group_by(Species)  %>% summarise("613" = mean(weighted2, na.rm = TRUE))
-data3 <- data %>% group_by(Species)  %>% summarise("615" = mean(weighted3, na.rm = TRUE))
-
-plot_data <- cbind.data.frame(data1, data2$`613`, data3$`615`)
-names(plot_data)[3] <- "613"
-names(plot_data)[4] <- "615"
-
-df <- pivot_longer(plot_data, cols = c("609", "613", "615"), names_to= c("date"))
-?pivot_longer
-
-# make a function that takes in df, column name, and apply it to each of the columns 
-
-
-#make another column that has numbers for each phenophase e.g. 1 for BB...
-# then multiply entrywise by observations to weight them, then take the average
-# (either divide by sum of leaves etc or just by rows -- probably just rows)
-
-#want to get data grouped by species, then by pheno, so all of the phenophase 
-#observations for each species are grouped together. Then make another column 
-#that has the averages for each date and each phenophase
-
-```
-
-```{r}
-library(dplyr)
-library(tidyr)
-orig_data <- read.csv(file = "phenology621.csv", na.strings = c(""))
-
-#filling down the species names so it's easier to work with
-data <- fill(orig_data, Species)
-
-#converting phenophases into numerics to create a weighted average. There's 
-#most certainly a better way to do this 
-data[data == "BB"] <- 1
-data[data == "LE"] <- 2
-data[data == "LO"] <- 3
-data[data== "mm"] <- 1
-data[data== "mm, T"] <- 1
-data[data== "mm, O"] <- 1
-data[data== "mm, O "] <- 1
-data[data== "flowers"] <- 1
-data[data== "yellow"] <- 1
-data[data == "notes"] <- 0
-
-#convert columns to numeric
-names(data)[startsWith(names(data),"X")] <- as.numeric(unlist(names(data)[startsWith(names(data),"X")]))
-
-data["X06.09"] <- as.numeric(unlist(data["X06.09"]))
-data["X06.13"] <- as.numeric(unlist(data["X06.13"]))
-data["X06.15"] <- as.numeric(unlist(data["X06.15"]))
-data["X6.16"] <- as.numeric(unlist(data["X6.16"]))
-data["X6.18"] <- as.numeric(unlist(data["X6.18"]))
-data["X6.20"] <- as.numeric(unlist(data["X6.20"]))
-
-#make sure phenophase scale is also numeric
-data$Pheno <- as.numeric(unlist(data$Pheno))
-
-#subset useful columns
-data <- select()
-
-#pivot longer first! Figure out a way to get all of the date columns -- select function!
-data <- pivot_longer(data, cols = names(data)[starts_with("X")], names_to= c("date"))
-
-#creates a weighted column
-data <- mutate(data, weighted = Pheno*value)
-
-#gets rid of now unneeded columns
-data <- select(data, Species, date, weighted)
-
-plot <- data %>% group_by(Species,date)%>% summarise_if(is.numeric, mean, na.rm = TRUE)
-```
-
-
-# Plot by Transect
-```{r}
-library(dplyr)
-library(tidyr)
-orig_data <- read.csv(file = "phenology621.csv", na.strings = c(""))
-
-#filling down the species names so it's easier to work with
-data <- fill(orig_data, Species)
-
-#converting phenophases into numerics to create a weighted average. There's 
-#most certainly a better way to do this 
-data[data == "BB"] <- 1
-data[data == "LE"] <- 2
-data[data == "LO"] <- 3
-data[data== "mm"] <- 1
-data[data== "mm, T"] <- 1
-data[data== "mm, O"] <- 1
-data[data== "mm, O "] <- 1
-data[data== "flowers"] <- 1
-data[data== "yellow"] <- 1
-data[data == "notes"] <- 0
-
-#convert columns to numeric
-data["X06.09"] <- as.numeric(unlist(data["X06.09"]))
-data["X06.13"] <- as.numeric(unlist(data["X06.13"]))
-data["X06.15"] <- as.numeric(unlist(data["X06.15"]))
-data["X6.16"] <- as.numeric(unlist(data["X6.16"]))
-data["X6.18"] <- as.numeric(unlist(data["X6.18"]))
-data["X6.20"] <- as.numeric(unlist(data["X6.20"]))
-
-#make sure phenophase scale is also numeric
-data$Pheno <- as.numeric(unlist(data$Pheno))
-
-#pivot longer first! Figure out a way to get all of the date columns -- select function!
-data <- data %>%  pivot_longer(cols = names(data)[starts_with("X")], names_to= c("date"))
-
-plot2 <- data %>% group_by(Species,date, ID)%>% summarise_if(is.numeric, mean, na.rm = TRUE)
-
-plot2$ID <- as.numeric(plot2$ID)
-plot2["transect"] <- floor(plot2$ID)
 
 
 ```
 
-## Plots
 
-You can also embed plots, for example:
 
-```{r}
-library(ggplot2)
-graph <- ggplot(plot2, aes(x=date, y = weighted, color=factor(Species))) + geom_point()
-graph + facet_grid(transect ~ .)
-```
+<!-- ## Establish common currency -->
+<!-- ```{r} -->
+
+<!--   #converts phenophases to numerical scale -->
+<!--   data[data == "BB"] <- 1 -->
+<!--   data[data == "LE"] <- 2 -->
+<!--   data[data == "LO"] <- 3 -->
+<!--   data[data== "mm"] <- 1 -->
+<!--   data[data== "mm, T"] <- 1 -->
+<!--   data[data== "mm, O"] <- 1 -->
+<!--   data[data== "mm, O "] <- 1 -->
+<!--   data[data== "flowers"] <- 1 -->
+<!--   data[data== "yellow"] <- 1 -->
+
+<!--   #make sure phenophase scale is also numeric -->
+<!--   data$Pheno <- as.numeric(unlist(data$Pheno)) -->
+
+<!-- # col should be the column of entered data corresponding to a date -->
+<!-- weight <- function(function_data, col) -->
+<!-- { -->
+<!--   function_data <- data -->
+
+<!--   #makes sure that the data is a numeric -->
+<!--   function_data$col <- as.numeric(unlist(function_data$col)) -->
+
+<!--   #creating a weighted column -->
+<!--   function_data[col] <- function_data$"Pheno" * function_data$col -->
+
+<!--   column_obj <- function_data$col -->
+
+<!--   return(function_data %>% group_by(Species)  %>% summarise(date= mean(col, na.rm = TRUE))) -->
+<!-- } -->
+
+
+<!-- data$"X06.13" -->
+
+<!-- weight(data, "X06.13") -->
+
+
+<!-- data["X06.09"] <- as.numeric(unlist(data["X06.09"])) -->
+<!-- data["X06.13"] <- as.numeric(unlist(data["X06.13"])) -->
+<!-- data["X06.15"] <- as.numeric(unlist(data["X06.15"])) -->
+
+<!-- #converting phenophases into numerics to create a weighted average. There's -->
+<!-- #most certainly a better way to do this -->
+<!-- data[data == "BB"] <- 1 -->
+<!-- data[data == "LE"] <- 2 -->
+<!-- data[data == "LO"] <- 3 -->
+<!-- data[data== "mm"] <- 1 -->
+<!-- data[data== "mm, T"] <- 1 -->
+<!-- data[data== "mm, O"] <- 1 -->
+<!-- data[data== "mm, O "] <- 1 -->
+<!-- data[data== "flowers"] <- 1 -->
+<!-- data[data== "yellow"] <- 1 -->
+
+<!-- data["Pheno"] <- as.numeric(unlist(data["Pheno"])) -->
+
+<!-- #creating a weighted column -->
+<!-- data["weighted1"] <- data["Pheno"] * data["X06.09"] -->
+<!-- data["weighted2"] <- data["Pheno"] * data["X06.13"] -->
+<!-- data["weighted3"] <- data["Pheno"] * data["X06.15"] -->
+
+<!-- #taking the average of the weighted phenophase data for each species -->
+<!-- data1 <- data %>% group_by(Species)  %>% summarise("609" = mean(weighted1, na.rm = TRUE)) -->
+<!-- data2 <- data %>% group_by(Species)  %>% summarise("613" = mean(weighted2, na.rm = TRUE)) -->
+<!-- data3 <- data %>% group_by(Species)  %>% summarise("615" = mean(weighted3, na.rm = TRUE)) -->
+
+<!-- plot_data <- cbind.data.frame(data1, data2$`613`, data3$`615`) -->
+<!-- names(plot_data)[3] <- "613" -->
+<!-- names(plot_data)[4] <- "615" -->
+
+<!-- df <- pivot_longer(plot_data, cols = c("609", "613", "615"), names_to= c("date")) -->
+<!-- ?pivot_longer -->
+
+<!-- # make a function that takes in df, column name, and apply it to each of the columns -->
+
+
+<!-- #make another column that has numbers for each phenophase e.g. 1 for BB... -->
+<!-- # then multiply entrywise by observations to weight them, then take the average -->
+<!-- # (either divide by sum of leaves etc or just by rows -- probably just rows) -->
+
+<!-- #want to get data grouped by species, then by pheno, so all of the phenophase -->
+<!-- #observations for each species are grouped together. Then make another column -->
+<!-- #that has the averages for each date and each phenophase -->
+
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- library(dplyr) -->
+<!-- library(tidyr) -->
+<!-- orig_data <- read.csv(file = "phenology621.csv", na.strings = c("")) -->
+
+<!-- #filling down the species names so it's easier to work with -->
+<!-- data <- fill(orig_data, Species) -->
+
+<!-- #converting phenophases into numerics to create a weighted average. There's -->
+<!-- #most certainly a better way to do this -->
+<!-- data[data == "BB"] <- 1 -->
+<!-- data[data == "LE"] <- 2 -->
+<!-- data[data == "LO"] <- 3 -->
+<!-- data[data== "mm"] <- 1 -->
+<!-- data[data== "mm, T"] <- 1 -->
+<!-- data[data== "mm, O"] <- 1 -->
+<!-- data[data== "mm, O "] <- 1 -->
+<!-- data[data== "flowers"] <- 1 -->
+<!-- data[data== "yellow"] <- 1 -->
+<!-- data[data == "notes"] <- 0 -->
+
+<!-- #convert columns to numeric -->
+<!-- names(data)[startsWith(names(data),"X")] <- as.numeric(unlist(names(data)[startsWith(names(data),"X")])) -->
+
+<!-- data["X06.09"] <- as.numeric(unlist(data["X06.09"])) -->
+<!-- data["X06.13"] <- as.numeric(unlist(data["X06.13"])) -->
+<!-- data["X06.15"] <- as.numeric(unlist(data["X06.15"])) -->
+<!-- data["X6.16"] <- as.numeric(unlist(data["X6.16"])) -->
+<!-- data["X6.18"] <- as.numeric(unlist(data["X6.18"])) -->
+<!-- data["X6.20"] <- as.numeric(unlist(data["X6.20"])) -->
+
+<!-- #make sure phenophase scale is also numeric -->
+<!-- data$Pheno <- as.numeric(unlist(data$Pheno)) -->
+
+<!-- #subset useful columns -->
+<!-- data <- select() -->
+
+<!-- #pivot longer first! Figure out a way to get all of the date columns -- select function! -->
+<!-- data <- pivot_longer(data, cols = names(data)[starts_with("X")], names_to= c("date")) -->
+
+<!-- #creates a weighted column -->
+<!-- data <- mutate(data, weighted = Pheno*value) -->
+
+<!-- #gets rid of now unneeded columns -->
+<!-- data <- select(data, Species, date, weighted) -->
+
+<!-- plot <- data %>% group_by(Species,date)%>% summarise_if(is.numeric, mean, na.rm = TRUE) -->
+<!-- ``` -->
+
+
+<!-- # Plot by Transect -->
+<!-- ```{r} -->
+<!-- library(dplyr) -->
+<!-- library(tidyr) -->
+<!-- orig_data <- read.csv(file = "phenology621.csv", na.strings = c("")) -->
+
+<!-- #filling down the species names so it's easier to work with -->
+<!-- data <- fill(orig_data, Species) -->
+
+<!-- #converting phenophases into numerics to create a weighted average. There's -->
+<!-- #most certainly a better way to do this -->
+<!-- data[data == "BB"] <- 1 -->
+<!-- data[data == "LE"] <- 2 -->
+<!-- data[data == "LO"] <- 3 -->
+<!-- data[data== "mm"] <- 1 -->
+<!-- data[data== "mm, T"] <- 1 -->
+<!-- data[data== "mm, O"] <- 1 -->
+<!-- data[data== "mm, O "] <- 1 -->
+<!-- data[data== "flowers"] <- 1 -->
+<!-- data[data== "yellow"] <- 1 -->
+<!-- data[data == "notes"] <- 0 -->
+
+<!-- #convert columns to numeric -->
+<!-- data["X06.09"] <- as.numeric(unlist(data["X06.09"])) -->
+<!-- data["X06.13"] <- as.numeric(unlist(data["X06.13"])) -->
+<!-- data["X06.15"] <- as.numeric(unlist(data["X06.15"])) -->
+<!-- data["X6.16"] <- as.numeric(unlist(data["X6.16"])) -->
+<!-- data["X6.18"] <- as.numeric(unlist(data["X6.18"])) -->
+<!-- data["X6.20"] <- as.numeric(unlist(data["X6.20"])) -->
+
+<!-- #make sure phenophase scale is also numeric -->
+<!-- data$Pheno <- as.numeric(unlist(data$Pheno)) -->
+
+<!-- #pivot longer first! Figure out a way to get all of the date columns -- select function! -->
+<!-- data <- data %>%  pivot_longer(cols = names(data)[starts_with("X")], names_to= c("date")) -->
+
+<!-- plot2 <- data %>% group_by(Species,date, ID)%>% summarise_if(is.numeric, mean, na.rm = TRUE) -->
+
+<!-- plot2$ID <- as.numeric(plot2$ID) -->
+<!-- plot2["transect"] <- floor(plot2$ID) -->
+
+
+<!-- ``` -->
+
+<!-- ## Plots -->
+
+<!-- You can also embed plots, for example: -->
+
+<!-- ```{r} -->
+<!-- library(ggplot2) -->
+<!-- graph <- ggplot(plot2, aes(x=date, y = weighted, color=factor(Species))) + geom_point() -->
+<!-- graph + facet_grid(transect ~ .) -->
+<!-- ``` -->
 
 
