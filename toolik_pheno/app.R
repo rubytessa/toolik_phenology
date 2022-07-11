@@ -9,9 +9,8 @@
 
 library(shiny)
 library(googlesheets4)
-## Read from google sheet
-orig_data <- read_sheet("https://docs.google.com/spreadsheets/d/1ohX8eUkBqoMZfytQkxMzWWYJ8GymI-xjPWnkMPsvst4/edit#gid=1013468108",
-                        col_types = c("cccciiiiiiiiiiiic")) ## specify what type so that it doesn't read as lists (due to letters and numbers in column)
+
+pheno_data <- read_csv("pheno_transect_data_tidy.csv")
 
 
 # Define UI for application that draws a histogram

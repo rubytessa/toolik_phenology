@@ -61,6 +61,13 @@ tidy_data <- data %>%
 ```
 
 
+## Write Dataframe for Shiny
+```{r}
+
+write_csv(tidy_data, file = "pheno_transect_data_tidy.csv")
+```
+
+
 ## Plot Phenophases
 
 ```{r pressure, echo=FALSE}
@@ -134,7 +141,6 @@ tidy_leaves <- leaf_data %>%
   
   # Remove measurement of new bud (but not open leaf) length
   filter(!str_detect(GrowthPoint, "new"))
-  
   
 
 ## Total Leaf Length 
