@@ -76,11 +76,11 @@ write_csv(tidy_data, file = "pheno_transect_data_tidy.csv")
 plot_data <- tidy_data %>% 
   filter(Species %in% c("CARBIG", "ERIVAG")) %>% 
   filter(!is.na(count)) %>% 
-  group_by(ID, Transect, date, Species, Pheno) %>% 
+  group_by(ID_Species, Transect, date, Pheno, Species) %>% 
   summarize(total_length = sum(count),
             avg_length = sum(count)/n())
 
-ggplot(plot_data, aes(x=date, y= total_length, color = Transect, group_by = ID)) +
+ggplot(plot_data, aes(x=date, y= total_length, color = Transect, group_by = ID_Species)) +
   geom_point() + 
   geom_line (data=plot_data[!is.na(plot_data$total_length),]) + 
   facet_grid(Pheno ~ Species)
@@ -93,13 +93,13 @@ plot_data <- tidy_data %>%
 
 ggplot(plot_data, aes(x=date, y= count, fill = Pheno)) +
   geom_bar(stat = "identity") + 
-  #geom_line(data=plot_data[!is.na(plot_data$count),]) + 
   facet_grid(ID ~ Species)
 
 
 ## Evergreen Shrubs 
 
-plot_data <- 
+plot_data <- tidy_data %>% 
+  filter(Species %in% c())
 
 ```
 
