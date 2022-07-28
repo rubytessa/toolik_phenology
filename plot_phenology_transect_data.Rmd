@@ -23,7 +23,7 @@ require(lubridate) # good package for working with dates
 
 ## Read from google sheet
 orig_data <- read_sheet("https://docs.google.com/spreadsheets/d/1ohX8eUkBqoMZfytQkxMzWWYJ8GymI-xjPWnkMPsvst4/edit#gid=1013468108",
-                        col_types = c("cccciiiiiiiiiiiic")) ## specify what type so that it doesn't read as lists (due to letters and numbers in column)
+                        col_types = c("cccciiiiiiiiiiiiiic")) ## specify what type so that it doesn't read as lists (due to letters and numbers in column)
 
 #filling down the species names so it's easier to work with
 data <- fill(orig_data, Species) %>% #   fill down the sp. names
@@ -64,7 +64,7 @@ tidy_data <- data %>%
 ## Write Dataframe for Shiny
 ```{r}
 
-write_csv(tidy_data, file = "pheno_transect_data_tidy.csv")
+write_csv(tidy_data, file = "/home/ruby/Projects/toolik_phenology/toolik_phenology/pheno_transect_data_tidy.csv")
 ```
 
 

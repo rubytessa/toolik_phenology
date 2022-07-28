@@ -10,7 +10,7 @@ library(tidyverse)
 read_tms4 <- function(file) {
   
   # Extract serial number from filename
-  serial <- file %>% str_split(pattern = "_") %>% last() %>% tail(n=2) %>% pluck(1)
+  serial <- file %>% str_split(pattern = "_") %>% last() %>% pluck(3) %>% tail(n=2)
   print(file)
   
   # Read the data file
@@ -44,15 +44,15 @@ read_tms4 <- function(file) {
 
 ## Read-in data files
 
-
-files <- list.files(path = "C:/Program Files (x86)/Lolly/data/",pattern = "^data_*", full.names = T)
+tomst_folder <- "Projects/toolik_phenology/data/TOMST"
+files <- list.files(path = tomst_folder, pattern = "^data_*", full.names = T)
 
 data <- map_dfr(files, read_tms4)
 
 ## Plot data
 
 data_to_plot <- data %>% 
-  filter(Datetime_UTC > lubridate::ymd_hm("2021-08-16 15:00")) %>% 
+  filter(Datetime_UTC > lubridate::ymd_hm("2022-07-13 15:00")) %>% 
   pivot_longer(cols = T1:SoilMoistureCount,
                names_to = "Variable",
                values_to = "Value")

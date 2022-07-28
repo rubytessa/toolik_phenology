@@ -88,13 +88,14 @@ shinyServer(function(input, output) {
             summarize(total_length = sum(count),
                       avg_length = sum(count)/n())
         tidy_data %>% 
-            filter(Species %in% c("BETNAN", "SALPUL")) %>% 
-            filter(Transect == 1)
+            filter(Species %in% input_species) %>% 
+            filter(Transect %in% input_transect) %>% 
+            filter(Flag %in% input_flag)
         
     }) 
     output$bar_plot <- renderPlot({
         
-            ggplot(barData(), aes(x=date, y= count, fill = Pheno)) +
+            ggplot(selectedBar(), aes(x=date, y= count, fill = Pheno)) +
                 geom_bar(stat = "identity") + 
                 facet_grid(ID ~ Species) + 
         

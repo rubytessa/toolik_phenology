@@ -1,0 +1,58 @@
+---
+title: "Biomass Accumulation Curves"
+author: "Ruby An"
+date: "7/20/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F)
+require(tidyverse)
+require(googlesheets4) # read in google spreadsheets without having to download
+require(lubridate) # good package for working with dates 
+```
+
+## Read in file
+
+```{r cars}
+## Read data from local file 
+# orig_data <- read.csv(file = "data_phenology.csv", na.strings = c(""))
+
+## Read from google sheet
+raw_data <- read_sheet("https://docs.google.com/spreadsheets/d/1a_t--btnnBUEQBCKBz1EJvVKnVWIak--eAm3oCT8PcA/edit#gid=1478706602",skip = 1, col_types = "c") ## specify what type so that it doesn't read as lists (due to letters and numbers in column)
+
+
+tidy_data <- raw_data %>% 
+  pivot_longer(cols = Plant_Total_WetWeight:Stem_New_DryWeight, 
+               names_to = "category", 
+               values_to = "value", values_drop_na = T) %>% 
+  separate(category, into = c("Part", "Age", "Measurement"), sep = "_", remove = F) 
+
+# disaggregate 
+
+gram_data <- tidy_data %>% 
+  filter(Species %in% c("ERI VAG", "CAR BIG")) %>% 
+  separate_rows(value, sep = ";")
+
+tidier_data <- tidy_data %>% 
+  filter(!(Species %in% c("ERI VAG", "CAR BIG"))) %>% 
+  bind_rows(gram_data) %>% 
+  mutate(value = as.numeric(value)) %>% 
+ filter(Species %in% c("ERIVAG", "CARBIG", "BETNAN", "RHOTOM", "SALPUL")) %>% 
+  filter(Age == "New" & Measurement == "WetWeight")
+
+
+ggplot(tidier_data, aes(x=Date, y= value, group = ID, color = category)) +
+  geom_point() + 
+  facet_grid(category ~ Species, scales = "free")
+```
+
+## Including Plots
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
