@@ -44,7 +44,7 @@ read_tms4 <- function(file) {
 
 ## Read-in data files
 
-tomst_folder <- "Projects/toolik_phenology/data/TOMST"
+tomst_folder <- "Projects/shrubification_model/"
 files <- list.files(path = tomst_folder, pattern = "^data_*", full.names = T)
 
 data <- map_dfr(files, read_tms4)
@@ -52,7 +52,7 @@ data <- map_dfr(files, read_tms4)
 ## Plot data
 
 data_to_plot <- data %>% 
-  filter(Datetime_UTC > lubridate::ymd_hm("2022-07-13 15:00")) %>% 
+  filter(Datetime_UTC > lubridate::ymd_hm("2022-07-16 15:00")) %>% 
   pivot_longer(cols = T1:SoilMoistureCount,
                names_to = "Variable",
                values_to = "Value")
