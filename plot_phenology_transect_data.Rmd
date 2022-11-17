@@ -9,9 +9,9 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = F)
-require(tidyverse)
-require(googlesheets4) # read in google spreadsheets without having to download
-require(lubridate) # good package for working with dates 
+library(tidyverse)
+library(googlesheets4)
+library(lubridate)
 ```
 
 ## Download and clean data
@@ -21,8 +21,8 @@ require(lubridate) # good package for working with dates
 ## Read data from local file 
 # orig_data <- read.csv(file = "data_phenology.csv", na.strings = c(""))
 
-## Read from google sheet
-orig_data <- read_sheet("https://docs.google.com/spreadsheets/d/1ohX8eUkBqoMZfytQkxMzWWYJ8GymI-xjPWnkMPsvst4/edit#gid=1013468108",
+## Read transect data from google sheet
+orig_data <- read_sheet("https://docs.google.com/spreadsheets/d/14Qvrt2Mq2Y5V6DInkP1XysnNLhreXMn7WXVe6OFgmn0/edit#gid=1013468108",
                         col_types = c("cccciiiiiiiiiiiiiiiic")) ## specify what type so that it doesn't read as lists (due to letters and numbers in column)
 
 #filling down the species names so it's easier to work with
@@ -63,14 +63,16 @@ tidy_data <- data %>%
 
 ## Write Dataframe for Shiny
 ```{r}
-
-write_csv(tidy_data, file = "/home/ruby/Projects/toolik_phenology/toolik_phenology/pheno_transect_data_tidy.csv")
+write_csv(tidy_data, file = "/home/ruby/toolik_phenology/data/pheno_transect_data_tidy.csv")
 ```
 
 
 ## Plot Phenophases
 
 ```{r pressure, echo=FALSE}
+
+## Read data
+tidy_data <- read_csv("data/pheno_transect_data_tidy.csv")
 
 ## Graminoids 
 plot_data <- tidy_data %>% 
@@ -80,26 +82,42 @@ plot_data <- tidy_data %>%
   summarize(total_length = sum(count),
             avg_length = sum(count)/n())
 
-ggplot(plot_data, aes(x=date, y= total_length, color = Transect, group_by = ID_Species)) +
-  geom_point() + 
-  geom_line (data=plot_data[!is.na(plot_data$total_length),]) + 
-  facet_grid(Pheno ~ Species)
+ggplot(plot_data, aes(x=date, y= total_length, color = Transect)) +
+  geom_point(aes(group_by = ID_Species)) + 
+  geom_line(aes(group_by = ID_Species),data=plot_data[!is.na(plot_data$total_length),]) + 
+  scale_color_viridis_b() + 
+  facet_grid(Pheno ~ Species) + 
+  theme_minimal()
 
 
 ## Deciduous Shrubs 
 plot_data <- tidy_data %>% 
     filter(Species %in% c("BETNAN", "SALPUL")) %>% 
-  filter(Transect == 1)
+  filter(Pheno %in% c("BB", "LE", "LO"))
 
-ggplot(plot_data, aes(x=date, y= count, fill = Pheno)) +
-  geom_bar(stat = "identity") + 
-  facet_grid(ID ~ Species)
+stem_data <- plot_data %>% 
+  filter(Pheno == "new_stem") %>% 
+  group_by(ID_Species, date) %>% summarize(TS = sum(count))
 
+plot_data <- plot_data %>% left_join(stem_data)
+
+ggplot(plot_data, aes(x=date, y= count, color = Pheno)) +
+  geom_point(aes(group_by = ID_Species)) + 
+    geom_line(aes(group_by = ID_Species),data=plot_data[!is.na(plot_data$count),]) + 
+  facet_wrap(vars(Species))  + 
+  theme_minimal()
 
 ## Evergreen Shrubs 
 
 plot_data <- tidy_data %>% 
-  filter(Species %in% c())
+  filter(Species %in% c("VACVIT", "LEDPAL")) %>% 
+  filter(Pheno %in% c(1, 2, 3, 4, 5, "new_leaves")) 
+
+ggplot(plot_data, aes(x=date, y= count, color = Pheno)) +
+  geom_point(aes(group_by = ID_Species)) + 
+    geom_line(aes(group_by = ID_Species),data=plot_data[!is.na(plot_data$count),]) + 
+  facet_wrap(vars(Species))  + 
+  theme_minimal()
 
 ```
 
@@ -193,6 +211,25 @@ ggplot(num_leaves, aes(x = Date, y = measured_leaves, color = ID, group = ID_Spe
 
 
 
+```
+
+
+## Relative cover of these 6 species 
+```{r}
+cover <- read_csv("data/LTER_06MAT_relcov_2021.csv")
+
+cover %>% 
+  filter(species %in% c("Eri vag", "Bet nan", "Sal pul", "Car big", "Vac vit", "Led pal")) %>% 
+  group_by(block, plot, quad) %>% 
+  summarize(sum.cov = sum(rel.cov)) %>% 
+  filter(plot == "CT") %>% 
+  pull(sum.cov) %>% 
+  mean()
+  
+  
+  
+  ggplot() + 
+  geom_point(aes(x = plot, y = sum.cov)) 
 ```
 
 

@@ -40,13 +40,13 @@ tidier_data <- tidy_data %>%
   filter(!(Species %in% c("ERI VAG", "CAR BIG"))) %>% 
   bind_rows(gram_data) %>% 
   mutate(value = as.numeric(value)) %>% 
- filter(Species %in% c("ERIVAG", "CARBIG", "BETNAN", "RHOTOM", "SALPUL")) %>% 
+ filter(Species %in% c("ERIVAG", "CARBIG", "BETNAN", "RHOTOM", "VACVIT")) %>% 
   filter(Age == "New" & Measurement == "WetWeight")
-
 
 ggplot(tidier_data, aes(x=Date, y= value, group = ID, color = category)) +
   geom_point() + 
-  facet_grid(category ~ Species, scales = "free")
+  facet_grid(category ~ Species, scales = "free") + 
+  theme_minimal()
 ```
 
 ## Including Plots
